@@ -1,3 +1,4 @@
+
 package com.example.game_sudoku.Controller;
 
 import com.example.game_sudoku.Model.Game;
@@ -21,10 +22,10 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.control.ButtonType;
 
-
 public class GameController {
     Game game = new Game();
     TextField[][] textFields = new TextField[6][6];
+    private int errorCount =0;
 
     @FXML
     private GridPane GameGridPane;
@@ -37,24 +38,24 @@ public class GameController {
         alertReset.setContentText("Perderás todo el progreso actual, ¿estás seguro?");
         alertReset.setTitle("Confirmación de Reinicio");
         alertReset.showAndWait();
-        if (alertReset.getResult() == ButtonType.OK) {
-            game.resetPanel();// Si el usuario confirma, reinicia el tablero del modelo
 
-            for (Node node : GameGridPane.getChildren()) {
-                if (node instanceof TextField) {
-                    TextField textField = (TextField) node;
-                    int row = GridPane.getRowIndex(textField);
-                    int col = GridPane.getColumnIndex(textField);
-                    // Recorre los nodos, y obtiene su posicion en terminos de fila y columnas
-                    if (!game.isPanel(row, col)) { //verifica si es editable
-                        textField.setStyle(""); //elimina cualquier estilo aplicado al texto
-                        textField.setText("");// Limpiar el contenido de  TextField
-                    }
-                }
+        if (alertReset.getResult() == ButtonType.OK) {
+            game.resetPanel(); // Reinicia el tablero del modelo
+            game = new Game(); // Genera un nuevo tablero
+            updateTextFields(); // Actualiza los campos de texto en la vista
+        }
+    }
+    private void updateTextFields() {
+        for (Node node : GameGridPane.getChildren()) {
+            if (node instanceof TextField) {
+                TextField textField = (TextField) node;
+                int row = GridPane.getRowIndex(textField);
+                int col = GridPane.getColumnIndex(textField);
+                int number = game.getNumber(row, col);
+                textField.setText(number != 0 ? String.valueOf(number) : ""); // Actualiza el texto
+                textField.setDisable(number != 0); // Desactiva si es un número preestablecido
             }
         }
-
-
     }
     @FXML
     private void showHelp () {
@@ -134,29 +135,33 @@ public class GameController {
             }
         }
     }
-    private void inputField (KeyEvent event){
+    private void inputField(KeyEvent event) {
         TextField field = (TextField) event.getSource();
-        if(field.getText() != ""){ //compreba si no esta vacio el campo de texto
-            char textNumber = field.getText().charAt(0); //Toma el primer carácter del texto en el campo y lo almacena en textNumber
-            field.setText(""); //limpia contenido
-            if (Character.isDigit(textNumber)) { //verifica si el carcater ingresado es digito
-                int number = Character.getNumericValue(textNumber); //convierte en entero
-                if (number >= 1 && number <= 6) {  // comprueba si esta entre 1 y 6
-                    field.setText(String.valueOf(number)); //Establece el texto del campo como el número ingresado
-                    game.setNumber(number, getIndex(field)[0], getIndex(field)[1]);
-                    verifyNumber(field, number, getIndex(field)[0], getIndex(field)[1]);
-                    if (winVeri()) {
+        String inputText = field.getText(); // Obtén el texto del campo una vez
+        if (!inputText.isEmpty()) { // Comprobar si no está vacío
+            char textNumber = inputText.charAt(0); // Toma el primer carácter
+            field.setText(""); // Limpia contenido
+            if (Character.isDigit(textNumber)) { // Verifica si es un dígito
+                int number = Character.getNumericValue(textNumber); // Convierte a entero
+                if (number >= 1 && number <= 6) { // Comprueba si está entre 1 y 6
+                    field.setText(String.valueOf(number)); // Establece el número en el campo
+                    int[] indices = getIndex(field); // Obtiene índices
+                    game.setNumber(indices[0], indices[1], number); // Establece el número en el juego
+                    verifyNumber(field, number, indices[0], indices[1]); // Verifica el número
+                    if (winVeri()) { // Verifica si ha ganado
                         if (endValidation()) {
-                            displayWinAlert();
+                            displayWinAlert(); // Muestra alerta de victoria
                         }
                     }
                 }
             }
-        } else if(field.getText() == ""){
-            game.setNumber(0,getIndex(field)[0], getIndex(field)[1]);
-            nullStyle(field);
+        } else {
+            int[] indices = getIndex(field); // Obtiene índices solo una vez
+            game.setNumber(indices[0], indices[1], 0); // Establece 0 si el campo está vacío
+            nullStyle(field); // Limpia el estilo
         }
     }
+
     private void nullStyle (TextField field){
         field.setStyle("-fx-font-size: 25; -fx-font-family: 'Times New Roman'; -fx-text-fill: orange");
     }
@@ -173,36 +178,33 @@ public class GameController {
         }
         return new int[]{0,0};
     }
-    private void verifyNumber (TextField field, int number, int row, int column){
+    private void verifyNumber(TextField field, int number, int row, int column) {
         boolean validNumber = true;
-        for (int i=0; i<6; i++){
-            if(i != row){
-                if(number == game.getNumber(i, column)){
-                    errorStyle(field);
-                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                    alert.setTitle("Error");
-                    alert.setHeaderText("Ingresa un valor valido");
-                    alert.show();
-                    validNumber = false;}
-            }
-        }for (int i=0; i<6; i++){
-            if(i != column){
-                if(number == game.getNumber(row, i)){
-                    errorStyle(field);
-                    validNumber = false;}
+        for (int i = 0; i < 6; i++) {
+            if (i != row && number == game.getNumber(i, column)) {
+                errorStyle(field);
+                displayAlert("Ingresa un valor válido");
+                validNumber = false;
             }
         }
-        int qRow = row/2;
-        int qColumn = column/3;
-        for (int i = qRow*2; i< (qRow + 1)*2; i++){
-            for(int j = qColumn*3; j< (qColumn + 1)*3; j++){
-                if(number == game.getNumber(i,j) && i != row && j != column){
-                    errorStyle(field);
-                    validNumber = false;}
+        for (int i = 0; i < 6; i++) {
+            if (i != column && number == game.getNumber(row, i)) {
+                errorStyle(field);
+                validNumber = false;
             }
         }
-        if (validNumber)
-            nullStyle(field);
+        int qRow = row / 2;
+        int qColumn = column / 3;
+        for (int i = qRow * 2; i < (qRow + 1) * 2; i++) {
+            for (int j = qColumn * 3; j < (qColumn + 1) * 3; j++) {
+                if (number == game.getNumber(i, j) && i != row && j != column) {
+                    errorStyle(field);
+                    validNumber = false;
+                }
+            }
+        }
+        if (validNumber) nullStyle(field);
+
     }
     private boolean winVeri () {
         for (int i=0; i<6;i++){
